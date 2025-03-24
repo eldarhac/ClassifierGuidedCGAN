@@ -106,13 +106,12 @@ plt.ylabel("Loss")
 plt.legend()
 plt.savefig('plots/cnn_losses.png')
 
-
-torch.save(model.state_dict(), 'models/cnn_model_params.pth')
-# prompt: Take random 10 samples from the test dataset for each label (0 to 9), and plot the samples for each label in a small row, with the model prediction for each sample label
+# Save the model's trained parameters
+# torch.save(model.state_dict(), 'models/cnn_model_params.pth')
 
 # load the model parameters from the saved file 'models/cnn_model_params.pth'
-# model = CNNClassifier().to(device)
-# model.load_state_dict(torch.load('models/cnn_model_params.pth'))
+model = CNNClassifier().to(device)
+model.load_state_dict(torch.load('models/cnn_model_params.pth'))
 
 # Get random samples for each label
 num_samples_per_label = 10
@@ -163,5 +162,4 @@ for label in range(10):
   # plt.show()
 
 
-# prompt: Save the model's trained parameters
 
