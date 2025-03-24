@@ -106,6 +106,7 @@ plt.ylabel("Loss")
 plt.legend()
 plt.savefig('plots/cnn_losses.png')
 
+
 torch.save(model.state_dict(), 'models/cnn_model_params.pth')
 # prompt: Take random 10 samples from the test dataset for each label (0 to 9), and plot the samples for each label in a small row, with the model prediction for each sample label
 
