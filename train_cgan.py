@@ -37,3 +37,6 @@ trainer.fit(gan, train_loader)
 
 # Generate and Plot a Digit
 gan.generate_digit(label=5)
+
+
+# TODO - copy and paste from colab notebook
