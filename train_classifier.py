@@ -1,165 +1,154 @@
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms
+import os.path
+
+from pytorch_lightning import Trainer
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 import torch
-import torch.optim as optim
-import torch.nn as nn
+from sklearn.metrics import confusion_matrix
+import numpy as np
+import argparse
 
-from cnn_classifier import CNNClassifier
+from cnn_classifier import CNNClassifier, HistoryCallback
+from data_module import ClassificationDataModule
 
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
 
-# Load MNIST dataset
-train_dataset = datasets.MNIST(root="./data", train=True, download=True, transform=transforms.ToTensor())
-test_dataset = datasets.MNIST(root="./data", train=False, download=True, transform=transforms.ToTensor())
 
-train_size = int(0.8 * len(train_dataset))
-val_size = len(train_dataset) - train_size
-train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+def train_cnn_classifier(dataset_name, batch_size=64, max_epochs=10, lr=1e-3, save_path=None):
+    dm = ClassificationDataModule(dataset_name=dataset_name, batch_size=batch_size)
+    dm.setup()
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64)
-test_loader = DataLoader(test_dataset, batch_size=64)
+    classifier = CNNClassifier(in_channels=dm.in_channels, num_classes=10, lr=lr)
 
-# Initialize the model, optimizer, and loss function
-model = CNNClassifier().to(device)
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-criterion = nn.CrossEntropyLoss()
+    history_cb = HistoryCallback()
+    mnist_trainer = Trainer(max_epochs=max_epochs, num_sanity_val_steps=0, callbacks=[history_cb])
 
-train_losses = []
-val_losses = []
+    mnist_trainer.fit(classifier, dm)
 
-num_epochs = 10
-for epoch in range(num_epochs):
-    # Training loop
-    model.train()
-    train_loss = 0
-    train_correct = 0
-    train_total = 0
-    for batch_idx, (data, target) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output, target)
-        loss.backward()
-        optimizer.step()
+    train_loss = classifier.train_losses
+    train_acc = classifier.train_accs
 
-        train_loss += loss.item()
-        _, predicted = output.max(1)
-        train_total += target.size(0)
-        train_correct += predicted.eq(target).sum().item()
+    mnist_trainer.validate(classifier, dm)
 
-    train_accuracy = train_correct / train_total
-    avg_train_loss = train_loss / len(train_loader)
+    val_loss = classifier.val_losses[1:]
+    val_acc = classifier.val_accs[1:]
 
-    # Validation loop
-    model.eval()
-    val_loss = 0
-    val_correct = 0
-    val_total = 0
+    if save_path:
+        torch.save(classifier.state_dict(), save_path)
+        print(f"Model saved to {save_path}")
+
+    return classifier, train_loss, train_acc, val_loss, val_acc, dm
+
+
+def plot_losses(dataset_name, train_loss, val_loss, save_path=None):
+    plt.plot(train_loss, label="Train Loss")
+    plt.plot(val_loss, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    if save_path:
+        save_path_loss = os.path.join(save_path, f"{dataset_name}_classifier_loss_plot.png")
+        plt.savefig(save_path_loss)
+        print(f"Loss plot saved to {save_path}")
+    else:
+        plt.show()
+
+
+def plot_accuracy(dataset_name, train_acc, val_acc, save_path=None):
+    plt.plot(train_acc, label="Train Accuracy")
+    plt.plot(val_acc, label="Validation Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    if save_path:
+        save_path_acc = os.path.join(save_path, f"{dataset_name}_classifier_accuracy_plot.png")
+        plt.savefig(save_path_acc)
+        print(f"Accuracy plot saved to {save_path}")
+    else:
+        plt.show()
+
+
+def plot_confusion_matrix(dataset_name, classifier, dm, save_path=None):
+    all_preds = []
+    all_labels = []
+
     with torch.no_grad():
-        for data, target in val_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            loss, acc = model.validation_step((data,target), 0)
+        for x, y in dm.val_dataloader():
+            x = x.to(classifier.device)
+            logits = classifier(x)
+            preds = torch.argmax(logits, dim=1).cpu().numpy()
+            all_preds.extend(preds)
+            all_labels.extend(y.numpy())
 
-            val_loss += loss.item()
-            _, predicted = output.max(1)
-            val_total += target.size(0)
-            val_correct += predicted.eq(target).sum().item()
+    cm = confusion_matrix(all_labels, all_preds)
 
-    val_accuracy = val_correct / val_total
-    avg_val_loss = val_loss / len(val_loader)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    ax.figure.colorbar(im, ax=ax)
 
-    train_losses.append(avg_train_loss)
-    val_losses.append(avg_val_loss)
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           xticklabels=np.arange(10),
+           yticklabels=np.arange(10),
+           title='Confusion Matrix',
+           ylabel='True Label',
+           xlabel='Predicted Label')
 
-    print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Train Acc: {train_accuracy:.4f}, Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.4f}")
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
-# Test loop
-model.eval()
-test_loss = 0
-test_correct = 0
-test_total = 0
-with torch.no_grad():
-    for data, target in test_loader:
-        data, target = data.to(device), target.to(device)
-        output = model(data)
-        loss, acc = model.test_step((data, target), 0)
+    fmt = 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
 
-        test_loss += loss.item()
-        _, predicted = output.max(1)
-        test_total += target.size(0)
-        test_correct += predicted.eq(target).sum().item()
+    if save_path:
+        save_path_cm = os.path.join(save_path, f"{dataset_name}_confusion_matrix.png")
+        plt.savefig(save_path_cm, bbox_inches='tight')
+        print(f"Confusion matrix saved to {save_path}")
 
-test_accuracy = test_correct / test_total
-avg_test_loss = test_loss / len(test_loader)
-print(f"Test Loss: {avg_test_loss:.4f}, Test Acc: {test_accuracy:.4f}")
-
-# Plot train and validation loss
-plt.plot(train_losses, label="Train Loss")
-plt.plot(val_losses, label="Validation Loss")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.legend()
-plt.savefig('plots/cnn_losses.png')
-
-# Save the model's trained parameters
-# torch.save(model.state_dict(), 'models/cnn_model_params.pth')
-
-# load the model parameters from the saved file 'models/cnn_model_params.pth'
-model = CNNClassifier().to(device)
-model.load_state_dict(torch.load('models/cnn_model_params.pth'))
-
-# Get random samples for each label
-num_samples_per_label = 10
-label_samples = {i: [] for i in range(10)}
-
-for data, target in test_loader:
-  for i in range(len(target)):
-    label = target[i].item()
-    if len(label_samples[label]) < num_samples_per_label:
-      label_samples[label].append((data[i], target[i]))
+    else:
+        fig.tight_layout()
+        plt.show()
 
 
-# Plot samples for each label in the same plot, row by row
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', type=str, choices=['mnist', 'cifar10'], required=True)
+    parser.add_argument('--save_path', type=str, default=None)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--max_epochs', type=int, default=10)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--plot_loss', action='store_true', default=False)
+    parser.add_argument('--plot_acc', action='store_true', default=False)
+    parser.add_argument('--confusion_matrix', action='store_true', default=False)
+    parser.add_argument('--plot_path', type=str, default=None)
+    args = parser.parse_args()
 
-fig, axs = plt.subplots(10, num_samples_per_label, figsize=(16, 16))
+    save_path = args.save_path
+    if save_path is None:
+        save_path = os.path.join("models", f"{args.dataset}_classifier_params.pth")
 
-for label in range(10):
-    for i in range(num_samples_per_label):
-        image, target = label_samples[label][i]
-        image = image.squeeze().cpu().numpy()
-        axs[label, i].imshow(image, cmap="gray")
-        axs[label, i].axis("off")
-
-        model.eval()
-        with torch.no_grad():
-            image = image.reshape(1, 1, 28, 28)
-            image = torch.from_numpy(image).to(device)
-            output = model(image)
-            predicted_label = torch.argmax(output, dim=1).item()
-            axs[label, i].set_title(f"Pred: {predicted_label}")
-
-    plt.savefig('plots/mnist_samples.png')
-  # fig.suptitle(f"Label: {label}")
-  # for i in range(num_samples_per_label):
-  #     image, target = label_samples[label][i]
-  #     image = image.squeeze().cpu().numpy()
-  #     axs[i].imshow(image, cmap="gray")
-  #     axs[i].axis("off")
-  #
-  #     model.eval()
-  #     with torch.no_grad():
-  #         image = image.reshape(1, 1, 28, 28)
-  #         image = torch.from_numpy(image).to(device)
-  #         output = model(image)
-  #         predicted_label = torch.argmax(output, dim=1).item()
-  #         axs[i].set_title(f"Pred: {predicted_label}")
-  #
-  # plt.show()
-
-
-
+    classifier, train_loss, train_acc, val_loss, val_acc, dm = train_cnn_classifier(
+        dataset_name=args.dataset,
+        batch_size=args.batch_size,
+        max_epochs=args.max_epochs,
+        lr=args.lr,
+        save_path=save_path
+    )
+    print(f"Classifier trained on {args.dataset} dataset.")
+    print(f"Train Loss: {train_loss[-1]}, Train Accuracy: {train_acc[-1]}")
+    print(f"Validation Loss: {val_loss[-1]}, Validation Accuracy: {val_acc[-1]}")
+    print(f"Model weights saved to {args.save_path}")
+    if args.plot_loss:
+        plot_losses(args.dataset, train_loss, val_loss, save_path=args.plot_path)
+    if args.plot_acc:
+        plot_accuracy(args.dataset, train_acc, val_acc, save_path=args.plot_path)
+    if args.confusion_matrix:
+        plot_confusion_matrix(args.dataset, classifier, dm, save_path=args.plot_path)
