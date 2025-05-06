@@ -52,6 +52,7 @@ def plot_mnist(model, save_path=None):
     plt.figure(figsize=(10, 10))
     plt.imshow(grid.permute(1, 2, 0))
     plt.axis('off')
+    plt.title("Generated MNIST Samples")
 
     if save_path:
         save_path = os.path.join(save_path, "mnist_samples.png")
@@ -94,6 +95,7 @@ def plot_cifar10(model, save_path=None):
     plt.tight_layout()
 
     plt.subplots_adjust(hspace=0.2)  # <<< More vertical space between rows!
+    plt.suptitle("Generated CIFAR10 Samples", fontsize=20)
 
     if save_path:
         save_path = os.path.join(save_path, "cifar10_samples.png")

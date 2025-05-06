@@ -45,11 +45,15 @@ def train_cnn_classifier(dataset_name, batch_size=64, max_epochs=10, lr=1e-3, sa
 
 
 def plot_losses(dataset_name, train_loss, val_loss, save_path=None):
-    plt.plot(train_loss, label="Train Loss")
-    plt.plot(val_loss, label="Validation Loss")
+    epochs = [i for i in range(1, len(train_loss) + 1)]
+    plt.figure(figsize=(10, 5))
+    plt.plot(epochs, train_loss, label="Train Loss")
+    plt.plot(epochs, val_loss, label="Validation Loss")
+    plt.title(f"{dataset_name.upper()} Classifier Training & Validation Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.legend()
+    plt.grid(True)
     if save_path:
         save_path_loss = os.path.join(save_path, f"{dataset_name}_classifier_loss_plot.png")
         plt.savefig(save_path_loss)
@@ -59,11 +63,15 @@ def plot_losses(dataset_name, train_loss, val_loss, save_path=None):
 
 
 def plot_accuracy(dataset_name, train_acc, val_acc, save_path=None):
-    plt.plot(train_acc, label="Train Accuracy")
-    plt.plot(val_acc, label="Validation Accuracy")
+    epochs = [i for i in range(1, len(train_loss) + 1)]
+    plt.figure(figsize=(10, 5))
+    plt.plot(epochs, train_acc, label="Train Accuracy")
+    plt.plot(epochs, val_acc, label="Validation Accuracy")
+    plt.title(f"{dataset_name.upper()} Classifier Training & Validation Accuracy")
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy")
     plt.legend()
+    plt.grid(True)
     if save_path:
         save_path_acc = os.path.join(save_path, f"{dataset_name}_classifier_accuracy_plot.png")
         plt.savefig(save_path_acc)
@@ -94,7 +102,7 @@ def plot_confusion_matrix(dataset_name, classifier, dm, save_path=None):
            yticks=np.arange(cm.shape[0]),
            xticklabels=np.arange(10),
            yticklabels=np.arange(10),
-           title='Confusion Matrix',
+           title=f'{dataset_name.upper()} Classifier Confusion Matrix',
            ylabel='True Label',
            xlabel='Predicted Label')
 
