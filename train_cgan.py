@@ -23,7 +23,7 @@ def train_cnn_cgan(dataset_name, batch_size=64, max_epochs=10, lr=2e-4, latent_d
     try:
         if clf_path is None:
             clf_path = f"models/{dataset_name}_classifier_params.pth"
-        clf = CNNClassifier()
+        clf = CNNClassifier(in_channels=dm.in_channels, lr=lr)
         clf.load_state_dict(torch.load(clf_path))
     except FileNotFoundError:
         print(f"Classifier model not found at {clf_path}. Please train the classifier first.")

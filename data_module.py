@@ -91,6 +91,7 @@ class GANDataModule(pl.LightningDataModule):
         self.train_dataset = ds
         self.val_dataset = val_ds
         self.img_shape = (in_channels, size, size)
+        self.in_channels = in_channels
         self.num_classes = 10
 
     def train_dataloader(self):

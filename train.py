@@ -33,7 +33,7 @@ if __name__ == '__main__':
         batch_size=args.batch_size,
         max_epochs=args.max_epochs,
         lr=args.lr,
-        save_path=args.save_path
+        save_path=classifier_save_path
     )
 
     print(f"Classifier trained on {args.dataset} dataset.")
