@@ -19,14 +19,14 @@ else:
 
 
 def train_cnn_classifier(dataset_name, batch_size=64, max_epochs=10, lr=1e-3, save_path=None):
+    # Prepare Data
     dm = ClassificationDataModule(dataset_name=dataset_name, batch_size=batch_size)
     dm.setup()
 
+    # Train
     classifier = CNNClassifier(in_channels=dm.in_channels, num_classes=10, lr=lr)
-
     history_cb = HistoryCallback()
-    mnist_trainer = Trainer(max_epochs=max_epochs, num_sanity_val_steps=0, callbacks=[history_cb])
-
+    mnist_trainer = Trainer(max_epochs=max_epochs, num_sanity_val_steps=0, callbacks=[history_cb], devices=1)
     mnist_trainer.fit(classifier, dm)
 
     train_loss = classifier.train_losses
@@ -63,7 +63,7 @@ def plot_losses(dataset_name, train_loss, val_loss, save_path=None):
 
 
 def plot_accuracy(dataset_name, train_acc, val_acc, save_path=None):
-    epochs = [i for i in range(1, len(train_loss) + 1)]
+    epochs = [i for i in range(1, len(train_acc) + 1)]
     plt.figure(figsize=(10, 5))
     plt.plot(epochs, train_acc, label="Train Accuracy")
     plt.plot(epochs, val_acc, label="Validation Accuracy")
