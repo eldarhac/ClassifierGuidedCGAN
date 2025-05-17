@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # Train CGAN
     cgan_save_path = os.path.join(args.save_path, f"{args.dataset}_cgan_params.pth")
-    train_cnn_cgan(
+    cgan_model = train_cnn_cgan(
         dataset_name=args.dataset,
         batch_size=args.batch_size,
         max_epochs=args.max_epochs,
@@ -65,5 +65,5 @@ if __name__ == '__main__':
     if args.save_plots:
         samples_dir = "samples"
         # Save plots of generated samples
-        plot_samples(args.dataset, cgan_save_path, save_path=samples_dir)
+        plot_samples(args.dataset, cgan_model, save_path=samples_dir)
         print(f"Generated samples saved to {samples_dir}")
